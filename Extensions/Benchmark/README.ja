@@ -1,0 +1,337 @@
+zabbix-benchmark README
+=======================
+
+これは何?
+---------
+
+zabbix-benchmarkはZabbix用のベンチマークツールです。
+
+
+書き込み性能ベンチマーク
+------------------------
+
+### Zabbix環境の準備
+
+#### Zabbixサーバの準備
+
+通常のZabbixを使用する場合は、以下のパッチを当ててビルド・インストールする。
+
+* patches/zabbix-2.0.3-histsync-log.patch
+* patches/zabbix-2.0.3-poller-log.patch
+
+HistoryGluon版のZabbixを使用する場合は、zabbix-server.confに以下の設定を加える。
+
+    BenchmarkMode=1
+
+#### zabbix-server.confの修正
+
+現在のzabbix-benchmarkではベンチマーク中にログローテートが発生するとDB書き込み
+数を正しく集計することが出来ないため、LogFileSizeを最大サイズに設定する。
+
+    LogFileSize=1024
+
+また、計測中はHouseKeeperによる負荷変動を抑えたいため、DisableHousekeepingを1
+に設定する。
+
+    DisableHousekeeping=1
+
+#### 監視対象Linuxホストの準備
+
+監視対象となるLinuxホストを数台用意し、通常の手順でzabbix-agentを動作させる。
+監視対象ホストは多ければ多いほど良いが、用意できなければ一台でも構わない。
+サーバ側にはひとつのzabbix-agentを複数の異なるホストとして登録することで、監視
+アイテム数を増やしていき、DB書き込み負荷をかける。
+
+#### Zabbixサーバへの監視テンプレート登録
+
+ベンチマークには以下のテンプレートを使用する。
+
+* conf/zabbix/template-linux-5sec.xml
+  * 監視アイテム数: 102個
+  * 更新間隔: 5秒
+
+このテンプレートをZabbixのWebインターフェースで登録する。
+
+
+### zabbix-benchmarkの準備
+
+#### Rubyのインストール
+
+CentOSやScientific Linuxの場合は、以下のコマンドでrubyとgemをインストールする。
+
+    # yum install rubygems ruby-devel
+
+#### ZabbixAPIライブラリのインストール
+
+zabbix-benchmarkは、zbxapiというサードパーティ製のライブラリを使用する。
+zbxapiはgemコマンドでインストールすることができる。
+
+    # gem install zbxapi
+
+動作確認済のzbxapiはVersion 0.2.415である。zbxapiのバージョン間の非互換性が原
+因でzabbix-benchmarkが動作しない場合は、以下のようにバージョン指定を付けて
+zbxapiをインストールする。
+
+   $ gem install zbxapi -v 0.2.415
+
+#### 設定ファイルの用意
+
+conf/config-sample.ymlをconf/config.ymlにコピーし、内容を適切に修正する。  
+それぞれの値の意味は以下の通りである。
+
+* uri
+  * ZabbixフロントエンドのURI
+* login_user
+  * Zabbixフロントエンドのログインユーザ名
+  * 対象のユーザにAPIの使用権限が付与されている必要がある。
+  * Zabbix 2.0の場合、AdminにはデフォルトでAPI使用権が設定されている。
+* login_pass
+  * 上記ユーザのパスワード
+* num_host
+  * 登録ホスト数の上限。
+  * この値に達するまで、段階的にホスト数を増やして計測が行われる
+* hosts_step
+  * 一回のステップで増やすホスト数
+* host_group
+  * ダミーホストを登録するホストグループ。
+  * グループは事前に用意しておく。
+* template_name
+  * 使用する監視テンプレート。
+  * テンプレートは事前に用意しておく。
+* agents
+  * 使用するzabbix-agentのIPアドレスとポート
+  * 複数指定可能。複数指定した場合は、ダミーホストが均等に割り振られる。
+  * 指定しない場合は、127.0.0.1:10050が使用される。
+* zabbix_log_file
+  * Zabbixサーバのログファイルのパス。
+* rotate_zabbix_log
+  * trueの場合、ステップ毎にZabbixサーバのログをローテートする。
+* write_throughput_result_file
+  * 書き込みスループットの計測結果を出力するファイル。
+* warmup_duration
+  * 一ステップのセットアップ完了から計測実行まで待ち時間(秒)。
+  * zabbix_server.confのCacheUpdateFrequency以上の値が望ましい。
+* measurement_duration
+  * 一ステップの計測時間。
+* self_monitoring_items
+  * Zabbixから収集するヒストリアイテムのホスト名、キー、保存パスを指定する。
+  * 複数のアイテムを指定可能です。
+
+#### 接続の確認
+
+以下のコマンドで、Zabbixフロントエンドへの接続を確認する。
+
+    $ ./zabbix-benchmark api_version
+
+問題なく接続できれば、以下のように出力される。
+
+    1.4
+
+#### ダミーホストの登録
+
+以下のコマンドを実行して、Zabbixにダミーホストを登録する。
+
+    $ ./zabbix-benchmark setup
+
+
+### 書き込み性能ベンチマークの実行
+
+#### アクセス権限について
+
+zabbix-benchmarkは実行の際にZabbixのログをローテートするため、「zabbix」ユーザ
+ー権限で実行する。
+
+#### 実行コマンド
+
+以下のコマンドでzabbix-benchmarkを実行する。
+
+    $ ./zabbix-benchmark writing_benchmark
+
+ベンチマークの実行が終了すると、設定ファイルのwrite_throughput_result_fileで指
+定したファイルに結果が出力される。
+
+もしベンチマークを中断したり途中で失敗したりした場合は、以下のコマンドで状態を
+リセットする。
+
+    $ ./zabbix-benchmark disable_all_hosts
+
+
+#### 出力ファイルの内容
+
+出力ファイルには、CSV形式で計測データが出力される。  
+各カラムの内容は、順番に以下の通りである。
+
+* 開始時刻
+* 終了時刻
+* 有効な監視ホスト数
+* 有効な監視アイテム数
+* 一アイテムの平均書き込み時間[msec]
+* 計測期間内の総書き込みヒストリ数
+* 計測期間内の総書き込み処理時間[sec]
+* 計測期間内のpollerによる総読み込みヒストリ数
+* 計測期間内のpollerによる総読み込み処理時間[sec]
+* Zabbixエージェントとの通信エラーのログエントリ数
+
+
+読み込み性能ベンチマーク
+------------------------
+
+### 設定ファイルの用意
+
+conf/config-sample-reading.ymlをconf/config.ymlにコピーし、内容を適切に修正す
+る。読み込み性能の測定は、書き込み負荷を徐々に増加させての測定も行うため、書き
+込み性能測定時と同じ設定項目が必要である。これに加えて、読み込み性能測定専用の
+設定項目として以下が用意されている。
+
+* mysql: MySQL接続設定
+  * host: ホスト名
+  * username: ユーザー名
+  * password: パスワード
+  * database: データベース名
+* postgresql: PostgreSQL接続設定
+  * host: ホスト名
+  * username: ユーザー名
+  * password: パスワード
+  * database: データベース名
+* history_gluon: HistoryGluon接続設定
+  * host: ホスト名
+  * port: ポート番号
+  * database: データベース名
+* history_data: ヒストリデータセットアップ設定。セットアップ方法については
+  後述する。
+  * begin_time: 最初のヒストリの時刻
+  * end_time: 最後のヒストリの時刻
+  * interval_uint: uintアイテムの間隔[sec]
+  * interval_float: floatアイテムの間隔[sec]
+  * interval_string: stringアイテムの間隔[sec]
+  * num_hosts: セットアップホスト数。ダミーホスト全てに対してヒストリをセット
+    アップするのが理想だが、セットアップに時間がかかり過ぎる場合はこの設定で
+    ホスト数を制限する
+* history_duration_for_read: 一回のリクエストで読み込むヒストリ期間の設定。
+  minからmaxまで、step毎に読み込むヒストリ期間を増加させて、それぞれのヒストリ
+  期間でのレイテンシとスループットを計測する。
+  * step: ヒストリ期間増加ステップ[sec]
+  * min: 最小のヒストリ期間[sec]
+  * max: 最大のヒストリ期間[sec]
+* read_latency: 読み込みレイテンシベンチマーク設定
+  * try_count: それぞれのステップでレイテンシを測定する回数
+  * result_file: レイテンシの測定結果を出力するファイル。省略した場合は
+    output/result-read-latency.csv
+* read_throughput: 読み込みスループットベンチマーク設定
+  * num_thread: 読み込みを行うスレッド数
+  * result_file: スループットの測定結果を出力するファイル。省略した場合は
+    output/result-read-throughput.csv
+
+
+### 追加Rubyライブラリのインストール
+
+ヒストリDBとしてMySQLを使用して測定を行う場合は、mysql2パッケージをインストー
+ルする。mysql2をインストールするためには、RubyやMySQLの開発パッケージが必要で
+ある。
+
+CentOSおよびScientific Linuxでのインストール例:
+
+    # yum install gcc ruby-devel mysql-devel
+    # gem install mysql2
+
+ヒストリDBとしてPostgreSQLを使用して測定を行う場合は、pgパッケージをインストー
+ルする。pgをインストールするためには、RubyやPostgreSQLの開発パッケージが必要で
+ある。
+
+CentOSおよびScientific Linuxでのインストール例:
+
+    # yum install gcc ruby-devel postgresql-devel
+    # gem install pg
+
+ヒストリDBとしてHistoryGluonを使用して測定を行う場合は、HistoryGluonのRubyバイ
+ンディングをインストールする。
+
+CentOSおよびScientific Linuxでのインストール例:
+
+    # yum install gcc ruby-devel
+    $ git clone git@github.com:miraclelinux/HistoryGluon.git
+    (HistoryGluonそのもののインストールについてはREADMEを参照)
+    $ cd HistoryGluon/client-ruby-ext
+    $ ruby extconf.rb
+    $ make
+    # make install
+
+
+### ヒストリデータの用意
+
+zabbix-benchmarkには、読み込みベンチマーク用のヒストリデータをセットアップする
+ために「fill_history」コマンドが用意されている。ヒストリデータのセットアップは
+バックエンドDB毎に行う必要がある。
+
+MySQLにヒストリデータをセットアップする場合は、「mysql」オプションを与えて実行
+する。
+
+    $ ./zabbix-benchmark fill_history mysql
+
+PostgreSQLにヒストリデータをセットアップする場合は、「postgresql」オプションを
+与えて実行する。
+
+    $ ./zabbix-benchmark fill_history postgresql
+
+HistoryGluon経由でバックエンドDBにヒストリデータをセットアップする場合は、
+「fill_history」コマンドに「history-gluon」オプションを与えて実行する。
+
+    $ ./zabbix-benchmark fill_history history-gluon
+
+HistoryGluon経由の場合は、HistoryGluon側でもそれぞれのバックエンドDBを切り替え
+て実行する必要がある。
+
+セットアップしたデータは「clear_history」コマンドで削除することができる。DB指定
+オプションは「fill_history」と同様である。
+
+
+### 読み込み性能ベンチマークの実行
+
+読み込み性能ベンチマークは以下のコマンドで実行する。
+
+    $ ./zabbix-benchmark reading_benchmark
+
+reading_benchmarkに何もオプションを与えない場合は、Zabbixフロントエンド経由での
+読み込み性能を測定する。Zabbixフロントエンドを経由せずにDB直接通信での読み込み
+性能を測定したい場合は、fill_historyと同様にreading_benchmarkコマンドにDB指定オ
+プションを追加して実行する。
+
+MySQLの場合:
+
+    $ ./zabbix-benchmark reading_benchmark mysql
+
+PostgreSQLの場合:
+
+    $ ./zabbix-benchmark reading_benchmark postgresql
+
+HistoryGluon経由の場合:
+
+    $ ./zabbix-benchmark reading_benchmark history-gluon
+
+
+#### 出力ファイルの内容
+
+##### レイテンシ測定結果
+
+レイテンシの測定結果はread_latency/result_fileで指定したファイルにCSV形式で書き
+出される。各カラムの内容は、順番に以下の通りである。
+
+* 有効な監視ホスト数
+* 有効な監視アイテム数
+* 読み込みヒストリ期間[sec]
+* 平均レイテンシ[sec]
+* 読み込み成功回数
+* 読み込み失敗回数
+
+##### スループット測定結果
+
+スループットの測定結果はread_latency/result_fileで指定したファイルにCSV形式で書
+き出される。各カラムの内容は、順番に以下の通りである。
+
+* 有効な監視ホスト数
+* 有効な監視アイテム数
+* 読み込みヒストリ期間[sec]
+* 計測時間(measurement_duration)中の総読み込みヒストリ数
+* 計測時間(measurement_duration)中の総読み込み時間
+  (各スレッドでの実処理時間の合計)
+* 計測時間(measurement_duration)中の総書き込みヒストリ数

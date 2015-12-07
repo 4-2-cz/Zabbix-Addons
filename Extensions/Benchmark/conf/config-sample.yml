@@ -1,0 +1,29 @@
+uri: "http://localhost/zabbix/"
+#uri: "http://localhost/zabbix-postgresql/"
+login_user: "Admin"
+login_pass: "zabbix"
+num_hosts: 40
+hosts_step: 4
+host_group: "Linux servers"
+template_name: "Template_Linux_5sec"
+agents:
+ - ip_address: "127.0.0.1"
+   port: 10050
+zabbix_log_file: "/tmp/zabbix_server.log"
+rotate_zabbix_log: true
+warmup_duration: 90
+measurement_duration: 120
+clear_db_on_every_step: false
+self_monitoring_items:
+ - host: "Zabbix server"
+   key: "system.cpu.util[,system]"
+   path: "output/cpu-system.dat"
+ - host: "Zabbix server"
+   key: "system.cpu.util[,user]"
+   path: "output/cpu-user.dat"
+ - host: "Zabbix server"
+   key: "system.cpu.util[,iowait]"
+   path: "output/cpu-iowait.dat"
+ - host: "Zabbix server"
+   key: "system.cpu.util[,idle]"
+   path: "output/cpu-idle.dat"

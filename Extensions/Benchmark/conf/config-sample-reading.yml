@@ -1,0 +1,58 @@
+uri: "http://localhost/zabbix/"
+#uri: "http://localhost/zabbix-postgresql/"
+login_user: "Admin"
+login_pass: "zabbix"
+num_hosts: 40
+hosts_step: 4
+host_group: "Linux servers"
+template_name: "Template_Linux_5sec"
+agents:
+ - ip_address: "127.0.0.1"
+   port: 10050
+zabbix_log_file: "/tmp/zabbix_server.log"
+rotate_zabbix_log: true
+warmup_duration: 90
+measurement_duration: 120
+clear_db_on_every_step: false
+mysql:
+  host: "localhost"
+  username: "zabbix"
+  password: "zabbix"
+  database: "zabbix"
+postgresql:
+  host: "localhost"
+  username: "zabbix"
+  password: "zabbix"
+  database: "zabbix"
+history_gluon:
+  host: "localhost"
+  port: 0
+  database: "zabbix"
+history_data:
+  begin_time: "Thu Jan 01 00:00:00 +0000 1970"
+  end_time: "Fri Jan 01 00:00:00 +0000 1971"
+  interval_uint: 300
+  interval_float: 300
+  interval_string: 300
+  num_hosts: 40
+history_duration_for_read:
+  step: 864000
+  min:  864000
+  max:  8640000
+read_latency:
+  try_count: 10
+read_throughput:
+  num_threads: 1
+self_monitoring_items:
+ - host: "Zabbix server"
+   key: "system.cpu.util[,system]"
+   path: "output/cpu-system.dat"
+ - host: "Zabbix server"
+   key: "system.cpu.util[,user]"
+   path: "output/cpu-user.dat"
+ - host: "Zabbix server"
+   key: "system.cpu.util[,iowait]"
+   path: "output/cpu-iowait.dat"
+ - host: "Zabbix server"
+   key: "system.cpu.util[,idle]"
+   path: "output/cpu-idle.dat"

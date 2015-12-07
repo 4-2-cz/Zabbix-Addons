@@ -1,0 +1,14 @@
+= HAproxy Zabbix monitor
+
+Python script that polls the HAproxy status page and inserts the data into Zabbix via zabbix_sender. Mappings between HAproxy backends/servers and hosts in Zabbix needs to be configured in a text file. Currently supported HAproxy versions are 1.3.x and 1.4.x
+
+= Howto
+
+Import templates into zabbix.
+Assign hosts to the template.
+Create a config file containing mappings between hosts and haproxy backends.
+Add cron job that launches the poller script at desired intervals. The parameters are:
+# haproxy-poller.py path-to-ini http://proxyip:status-port zabbix-server zabbix-server-port
+
+Items to be monitored can be configured via the options dictionary, set to True or False. You also need to make changes in the HAproxy zabbix template.
+
